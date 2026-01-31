@@ -1,0 +1,18 @@
+{
+  "name": "automator-llm-summarize-clack",
+  "version": "1.0.0",
+  "description": "Clack prompt + folder creation for Automator app",
+  "packageManager": "pnpm@9.15.0",
+  "type": "module",
+  "main": "prompt-and-create-folder.mjs",
+  "scripts": {
+    "start": "node prompt-and-create-folder.mjs",
+    "prompt": "node prompt-llm-select.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.8.2"
+  }
+}

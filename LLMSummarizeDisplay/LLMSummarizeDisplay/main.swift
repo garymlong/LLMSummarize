@@ -6,7 +6,7 @@ import Foundation
 
 // Global variables for saving functionality
 var markdownContent: String = ""
-var originalFileURL: URL?
+var originalFileURLs: [URL] = []
 var windowRef: NSWindow?
 
 // Ensure we can connect to the window server when launched from non-terminal contexts
@@ -29,10 +29,14 @@ class SaveHandler: NSObject {
         savePanel.canCreateDirectories = true
         
         // Set default location to original file's folder and default filename
-        if let originalURL = originalFileURL {
-            savePanel.directoryURL = originalURL.deletingLastPathComponent()
-            let stem = originalURL.deletingPathExtension().lastPathComponent
-            savePanel.nameFieldStringValue = "\(stem)_summary.md"
+        if let firstURL = originalFileURLs.first {
+            savePanel.directoryURL = firstURL.deletingLastPathComponent()
+            if originalFileURLs.count == 1 {
+                let stem = firstURL.deletingPathExtension().lastPathComponent
+                savePanel.nameFieldStringValue = "\(stem)_summary.md"
+            } else {
+                savePanel.nameFieldStringValue = "combined_summary.md"
+            }
         }
         
         savePanel.beginSheetModal(for: window) { result in
@@ -121,72 +125,37 @@ func run(_ cmd: String, input: Data? = nil) throws -> Data {
     return stdout.fileHandleForReading.readDataToEndOfFile()
 }
 
-// Function to save markdown content to file
-func saveAsMarkdown() {
-    guard let window = windowRef, !markdownContent.isEmpty else { return }
-    
-    let savePanel = NSSavePanel()
-    savePanel.title = "Save Summary as Markdown"
-    if let mdType = UTType(filenameExtension: "md") {
-        savePanel.allowedContentTypes = [mdType]
-    }
-    savePanel.canCreateDirectories = true
-    
-    // Set default location to original file's folder and default filename
-    if let originalURL = originalFileURL {
-        savePanel.directoryURL = originalURL.deletingLastPathComponent()
-        let stem = originalURL.deletingPathExtension().lastPathComponent
-        savePanel.nameFieldStringValue = "\(stem)_summary.md"
-    }
-    
-    savePanel.beginSheetModal(for: window) { result in
-        if result == .OK, let url = savePanel.url {
-            do {
-                try markdownContent.write(to: url, atomically: true, encoding: .utf8)
-            } catch {
-                let alert = NSAlert()
-                alert.messageText = "Save Failed"
-                alert.informativeText = error.localizedDescription
-                alert.alertStyle = .critical
-                alert.runModal()
-            }
-        }
-    }
-}
-
-guard CommandLine.arguments.count > 1 else {
-    print("No file provided")
-    let alert = NSAlert()
-    alert.messageText = "No file provided"
-    alert.informativeText = "Please provide a file path as an argument"
-    alert.alertStyle = .critical
-    alert.runModal()
+guard CommandLine.arguments.count >= 3 else {
+    print("Error: Insufficient arguments. Usage: LLMSummarizeDisplay <model> <file1> [file2] ...")
     exit(1)
 }
 
 print("Starting LLMSummarize with arguments: \(CommandLine.arguments[1]) \(CommandLine.arguments[2])")
 
-// If we have 3 arguments, the third one is the model name (from wrapper script)
-let selectedModel: String
-if CommandLine.arguments.count >= 3 {
-    selectedModel = CommandLine.arguments[1]
-    print("Using pre-selected model: \(selectedModel)")
-} else {
-    let alert = NSAlert()
-    alert.messageText = "Model Selection Cancelled"
-    alert.informativeText = "Model selection was cancelled. Please try again."
-    alert.alertStyle = .informational
-    alert.runModal()
-    exit(1)
+// If we have 3 or more arguments, the first one is the model name
+let selectedModel = CommandLine.arguments[1]
+let filePaths = Array(CommandLine.arguments.dropFirst(2))
+let fileURLs = filePaths.map { URL(fileURLWithPath: $0) }
+print("Using pre-selected model: \(selectedModel)")
+print("Processing \(fileURLs.count) files: \(filePaths.joined(separator: ", "))")
+
+var combinedText = ""
+var fileContents: [(url: URL, content: String)] = []
+for fileURL in fileURLs {
+    do {
+        let content = try String(contentsOf: fileURL, encoding: .utf8)
+        fileContents.append((url: fileURL, content: content))
+        if fileURLs.count > 1 {
+            combinedText += "\n\n--- File: \(fileURL.lastPathComponent) ---\n\n"
+        }
+        combinedText += content
+    } catch {
+        print("Error reading file \(fileURL.path): \(error)")
+        exit(1)
+    }
 }
 
-let fileURL = URL(fileURLWithPath: CommandLine.arguments[2])
-let fileText = try String(contentsOf: fileURL, encoding: .utf8)
-
-//let lockFile = CommandLine.arguments[3] as String
-//lockFileGlobal = lockFile
-
-print("File content length: \(fileText.count) characters")
+print("Combined file content length: \(combinedText.count) characters")
 
 print("Selected model: \(selectedModel)")
 
@@ -194,7 +163,7 @@ let payload: [String: Any] = [
     "model": selectedModel,
     "messages": [[
         "role": "user",
-        "content": "Summarize this text concisely in Markdown:\n\n\(fileText)"
+        "content": "Summarize \(fileURLs.count == 1 ? "this file" : "these \(fileURLs.count) files") concisely in Markdown:\n\n\(combinedText)"
     ]]
 ]
 
@@ -239,7 +208,7 @@ let html = String(decoding: htmlData, as: UTF8.self)
 print("Generated HTML, length: \(html.count) characters")
 
 // Store values for save functionality
-originalFileURL = fileURL
+originalFileURLs = fileURLs
 markdownContent = markdown
 
 print("Setting up NSApplication...")
@@ -282,7 +251,7 @@ let window = NSWindow(
     defer: false
 )
 
-window.title = "LLMSummarize"
+window.title = "LLMSummarize (\(fileURLs.count == 1 ? "1 file" : "\(fileURLs.count) files"))"
 
 let webViewDelegate = WebViewDelegate()
 let webView = WKWebView(frame: window.contentView!.bounds, configuration: config)

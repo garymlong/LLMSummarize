@@ -8,10 +8,10 @@
 on run {input, parameters}
 	
 	set SCRIPT_DIR to "/Users/garylong/Models/LLMScripts/LLMSummarize/automator-llm-summarize"
-	set INPUT_FILE to input as text
+	set INPUT_FILES to input  # Keep as list
 	set RESULT_FILE to "/tmp/llm-selected-model.txt"
 	set POLL_TIMEOUT to 120
-	#display dialog "Received: " & INPUT_FILE
+	#display dialog "Received: " & INPUT_FILES
 	
 	tell application "Terminal"
 		activate
@@ -30,8 +30,8 @@ on run {input, parameters}
 					set AppleScript's text item delimiters to {return, linefeed}
 					set trimmed to (text items of resultContents) as text
 					set AppleScript's text item delimiters to astid
-					#return {INPUT_FILE, trimmed}
-					set targetFileHFS to INPUT_FILE
+					#return {INPUT_FILES, trimmed}
+					set targetFileHFSList to INPUT_FILES
 					set modelName to trimmed
 					set elapsed to POLL_TIMEOUT
 				end if
@@ -41,9 +41,19 @@ on run {input, parameters}
 		end repeat
 		
 		
-		set posixPathString to POSIX path of file targetFileHFS
-		#do script "cd " & quoted form of SCRIPT_DIR & " && ./run-llm-summarize.sh " & quoted form of modelName & " " & quoted form of posixPathString in myTab
-		do script "/usr/local/bin/LLMSummarizeDisplay " & quoted form of modelName & " " & quoted form of posixPathString in myTab
+		set posixPathList to {}
+		repeat with fileRef in targetFileHFSList
+			set end of posixPathList to POSIX path of file fileRef
+		end repeat
+		set allPathsString to ""
+		repeat with i from 1 to count of posixPathList
+			if i = 1 then
+				set allPathsString to quoted form of item i of posixPathList
+			else
+				set allPathsString to allPathsString & " " & quoted form of item i of posixPathList
+			end if
+		end repeat
+		do script "/usr/local/bin/LLMSummarizeDisplay " & quoted form of modelName & " " & allPathsString in myTab
 		delay 1
 		set W_ to windows of application "Terminal"
 		repeat until busy of (item 1 of W_) is false

@@ -19,24 +19,49 @@ if ProcessInfo.processInfo.environment["TERM"] == nil {
 
 
 func getStylesFilePath() -> String? {
-    // This is the correct way to get resource from bundle
-    if let url = Bundle.main.url(forResource: "styles", withExtension: "css") {
-        print("Found styles.css at: \(url.path)")
-        return url.path
+    if let executablePath = ProcessInfo.processInfo.arguments.first {
+        let directory = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
+
+        var pathComponents = [String]()
+        pathComponents.append(directory)
+        pathComponents.append("Styles") // Assuming Styles folder is one level up
+        pathComponents.append("template.css")
+
+        let stylesPath = pathComponents.joined(separator: "/")
+
+        if FileManager.default.fileExists(atPath: stylesPath) {
+            print("Found styles.css at: \(stylesPath)")
+            return stylesPath
+        } else {
+            print("styles.css NOT FOUND at: \(stylesPath)")
+            return nil
+        }
     } else {
-        print("styles.css not found in bundle (attempting fallback)")
-        // Try to find it in the Styles directory as a fallback
-        if let url = Bundle.main.url(forResource: "Styles/styles", withExtension: "css") {
-            print("Found styles.css at fallback path: \(url.path)")
-            return url.path
+        print("Executable path not found.")
+        return nil
+    }
+}
+
+func getTemplateFilePath() -> String? {
+    if let executablePath = ProcessInfo.processInfo.arguments.first {
+        let directory = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
+
+        var pathComponents = [String]()
+        pathComponents.append(directory)
+        pathComponents.append("Styles") // Assuming Styles folder is one level up
+        pathComponents.append("template.html5")
+
+        let stylesPath = pathComponents.joined(separator: "/")
+
+        if FileManager.default.fileExists(atPath: stylesPath) {
+            print("Found template.html5 at: \(stylesPath)")
+            return stylesPath
+        } else {
+            print("template.html5 NOT FOUND at: \(stylesPath)")
+            return nil
         }
-        // Try alternative resource names that might work
-        print("Trying alternative resource names...")
-        if let url = Bundle.main.url(forResource: "styles", withExtension: "css", subdirectory: "Styles") {
-            print("Found styles.css at subdirectory path: \(url.path)")
-            return url.path
-        }
-        print("styles.css NOT FOUND in bundle")
+    } else {
+        print("Executable path not found.")
         return nil
     }
 }
@@ -101,14 +126,20 @@ class RetryHandler: NSObject {
         }
         
         let cssFile = getStylesFilePath()
+        let templateFile = getTemplateFilePath()
         
         guard let cssFile = cssFile else {
             print("Error: Could not find styles.css file")
             return
         }
 
+        guard let templateFile = templateFile else {
+            print("Error: Could not find template.html5 file")
+            return
+        }
+
         let htmlData = try? run(
-            "pandoc -f markdown -t html --standalone --css=" + cssFile,
+            "pandoc -f markdown --mathjax -t html --css " + cssFile + " --template " + templateFile,
             input: markdown.data(using: .utf8)
         )
 
@@ -289,15 +320,19 @@ let markdown = try getMarkdownSummary(selectedModel: selectedModel, filePaths: f
 print("Got markdown content, length: \(markdown.count) characters")
 
 let cssFile = getStylesFilePath()
+let templateFile = getTemplateFilePath()
         
 guard let cssFile = cssFile else {
     print("Error: Could not find styles.css file")
     exit(1)
 }
+guard let templateFile = templateFile else {
+    print("Error: Could not find template.html5 file")
+    exit(1)
+}
 
-// Generate HTML without external CSS first
-var htmlData = try? run(
-    "pandoc -f markdown -t html --standalone --css=" + cssFile,
+let htmlData = try? run(
+    "pandoc -f markdown --mathjax -t html --css " + cssFile + " --template " + templateFile,
     input: markdown.data(using: .utf8)
 )
 
@@ -389,7 +424,7 @@ function setDarkMode(enabled) {
 }
 
 // Set initial mode
-setDarkMode(\(darkModeEnabled));
+// already in the template.html5 file
 """
 
 userContentController.addUserScript(WKUserScript(source: darkModeScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))

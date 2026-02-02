@@ -107,34 +107,12 @@ class RetryHandler: NSObject {
             return
         }
 
-let cssFile = getStylesFilePath()
-        
-guard let cssFile = cssFile else {
-    print("Error: Could not find styles.css file")
-    exit(1)
-}
+        let htmlData = try? run(
+            "pandoc -f markdown -t html --standalone --css=" + cssFile,
+            input: markdown.data(using: .utf8)
+        )
 
-markdownContent = markdown
-let cssFile = getStylesFilePath()
-        
-guard let cssFile = cssFile else {
-    print("Error: Could not find styles.css file")
-    return
-}
-
-let htmlData = try? run(
-    "pandoc -f markdown -t html --standalone --css=" + cssFile,
-    input: markdown.data(using: .utf8)
-)
-    } catch {
-        print("Failed to read CSS file for retry: \(error)")
-    }
-}
-        guard let htmlData = htmlData else {
-            print("Error running pandoc")
-            return
-        }
-        let html = String(decoding: htmlData, as: UTF8.self)
+        let html = String(decoding: htmlData ?? Data(), as: UTF8.self)
         webView.loadHTMLString(html, baseURL: nil)
     }
 }
@@ -323,39 +301,7 @@ var htmlData = try? run(
     input: markdown.data(using: .utf8)
 )
 
-// If we have a CSS file, embed it in the HTML
-if let cssPath = getStylesFilePath() {
-    do {
-        let cssContent = try String(contentsOfFile: cssPath)
-        if var htmlString = String(data: htmlData ?? Data(), encoding: .utf8) {
-            // Insert CSS into the <head> section of the HTML
-            let cssStyle = "<style>\n\(cssContent)\n</style>"
-            htmlString = htmlString.replacingOccurrences(of: "</head>", with: "\(cssStyle)</head>")
-            
-            // Add body class for initial mode - make sure we're not duplicating
-            if !htmlString.contains("class=\"") {
-                // Check if there's a <body> tag, otherwise add it to the html tag
-                if htmlString.contains("<body") {
-                    htmlString = htmlString.replacingOccurrences(of: "<body", with: "<body class=\"\(darkModeEnabled ? "dark-mode" : "light-mode")\">")
-                } else {
-                    // No body tag - likely a standalone HTML without body, add it to the html tag
-                    htmlString = htmlString.replacingOccurrences(of: "<html", with: "<html class=\"\(darkModeEnabled ? "dark-mode" : "light-mode")\">")
-                }
-            }
-            
-            htmlData = htmlString.data(using: .utf8)
-        }
-    } catch {
-        print("Failed to read CSS file: \(error)")
-    }
-}
-
-guard let htmlData = htmlData else {
-    print("Error running pandoc or no output data")
-    exit(1) // Terminate the program
-}
-
-let html = String(decoding: htmlData, as: UTF8.self)
+let html = String(decoding: htmlData ?? Data(), as: UTF8.self)
 print("Generated HTML, length: \(html.count) characters")
 
 // Store values for save functionality

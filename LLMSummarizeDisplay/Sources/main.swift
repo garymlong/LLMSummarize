@@ -1,228 +1,133 @@
 import Cocoa
-import WebKit
-import UniformTypeIdentifiers
 import Foundation
 
+// MARK: - Globals
 
-// Global variables for saving functionality
 var markdownContent: String = ""
 var originalFileURLs: [URL] = []
 var windowRef: NSWindow?
-var darkModeEnabled: Bool = false
+var modeButton: NSButton!
+var darkModeEnabled = false
 
-// Ensure we can connect to the window server when launched from non-terminal contexts
-// This is critical for Automator workflows
+// Ensure GUI works when launched from Automator
 if ProcessInfo.processInfo.environment["TERM"] == nil {
-    // Running outside of a terminal - ensure proper GUI setup
     setenv("CG_SESSION_EVENT_ID", "1", 1)
 }
 
+// MARK: - Markdown Rendering
 
-func getStylesFilePath() -> String? {
-    if let executablePath = ProcessInfo.processInfo.arguments.first {
-        let directory = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
+func makeMarkdownScrollView(markdown: String) -> NSScrollView {
+    let textView = NSTextView()
+    textView.isEditable = false
+    textView.isSelectable = true
+    textView.usesAdaptiveColorMappingForDarkAppearance = true
+    textView.drawsBackground = true
+    textView.textContainerInset = NSSize(width: 18, height: 18)
+    textView.font = NSFont.systemFont(ofSize: 14)
 
-        var pathComponents = [String]()
-        pathComponents.append(directory)
-        pathComponents.append("Styles") // Assuming Styles folder is one level up
-        pathComponents.append("template.css")
+    // 🔑 CRITICAL: enable proper wrapping
+    textView.textContainer?.widthTracksTextView = true
+    textView.textContainer?.heightTracksTextView = false
+    textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                              height: CGFloat.greatestFiniteMagnitude)
+    textView.isVerticallyResizable = true
+    textView.isHorizontallyResizable = false
 
-        let stylesPath = pathComponents.joined(separator: "/")
-
-        if FileManager.default.fileExists(atPath: stylesPath) {
-            print("Found styles.css at: \(stylesPath)")
-            return stylesPath
-        } else {
-            print("styles.css NOT FOUND at: \(stylesPath)")
-            return nil
+    if #available(macOS 12.0, *) {
+        if let attributed = try? NSAttributedString(markdown: markdown) {
+            textView.textStorage?.setAttributedString(attributed)
         }
     } else {
-        print("Executable path not found.")
-        return nil
+        textView.string = markdown
+        textView.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
     }
+
+    let scrollView = NSScrollView()
+    scrollView.documentView = textView
+    scrollView.hasVerticalScroller = true
+    scrollView.autoresizingMask = [.width, .height]
+
+    return scrollView
 }
 
-func getTemplateFilePath() -> String? {
-    if let executablePath = ProcessInfo.processInfo.arguments.first {
-        let directory = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
-
-        var pathComponents = [String]()
-        pathComponents.append(directory)
-        pathComponents.append("Styles") // Assuming Styles folder is one level up
-        pathComponents.append("template.html5")
-
-        let stylesPath = pathComponents.joined(separator: "/")
-
-        if FileManager.default.fileExists(atPath: stylesPath) {
-            print("Found template.html5 at: \(stylesPath)")
-            return stylesPath
-        } else {
-            print("template.html5 NOT FOUND at: \(stylesPath)")
-            return nil
-        }
-    } else {
-        print("Executable path not found.")
-        return nil
-    }
+func applyAppearance(_ isDark: Bool, to view: NSView) {
+    view.appearance = NSAppearance(
+        named: isDark ? .darkAqua : .aqua
+    )
 }
 
+// MARK: - Actions
 
-// Class to handle save action for menu and button
 class SaveHandler: NSObject {
     @objc static func saveMarkdownAction() {
-        guard let window = windowRef, !markdownContent.isEmpty else { return }
-        
-        let savePanel = NSSavePanel()
-        savePanel.title = "Save Summary as Markdown"
-        // For older macOS versions, use a simple approach without UTType
-        savePanel.canCreateDirectories = true
-        
-        // Set default location to original file's folder and default filename
-        if let firstURL = originalFileURLs.first {
-            savePanel.directoryURL = firstURL.deletingLastPathComponent()
-            if originalFileURLs.count == 1 {
-                let stem = firstURL.deletingPathExtension().lastPathComponent
-                savePanel.nameFieldStringValue = "\(stem)_summary.md"
-            } else {
-                savePanel.nameFieldStringValue = "combined_summary.md"
-            }
+        guard let window = windowRef else { return }
+
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.title = "Save Summary as Markdown"
+
+        if let first = originalFileURLs.first {
+            panel.directoryURL = first.deletingLastPathComponent()
+            panel.nameFieldStringValue =
+                originalFileURLs.count == 1
+                ? "\(first.deletingPathExtension().lastPathComponent)_summary.md"
+                : "combined_summary.md"
         }
-        
-        savePanel.beginSheetModal(for: window) { result in
-            if result == .OK, let url = savePanel.url {
-                do {
-                    try markdownContent.write(to: url, atomically: true, encoding: .utf8)
-                } catch {
-                    let alert = NSAlert()
-                    alert.messageText = "Save Failed"
-                    alert.informativeText = error.localizedDescription
-                    alert.alertStyle = .critical
-                    alert.runModal()
-                }
-            }
+
+        panel.beginSheetModal(for: window) { result in
+            guard result == .OK, let url = panel.url else { return }
+            try? markdownContent.write(to: url, atomically: true, encoding: .utf8)
         }
     }
 }
 
-// Class to handle copy action for button
 class CopyHandler: NSObject {
     @objc static func copyAction() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(markdownContent, forType: .string)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdownContent, forType: .string)
     }
 }
 
-// Class to handle retry action for button
 class RetryHandler: NSObject {
     @objc static func retryAction() {
-        // TODO: Implement retry logic
-        let selectedModel = CommandLine.arguments[1]
-        let filePaths = Array(CommandLine.arguments.dropFirst(2))
-        let markdown = try? getMarkdownSummary(selectedModel: selectedModel, filePaths: filePaths)
-        guard let markdown = markdown else {
-            print("Error getting markdown summary")
-            return
-        }
-        
-        let cssFile = getStylesFilePath()
-        let templateFile = getTemplateFilePath()
-        
-        guard let cssFile = cssFile else {
-            print("Error: Could not find styles.css file")
+        let model = CommandLine.arguments[1]
+        let files = Array(CommandLine.arguments.dropFirst(2))
+        guard let markdown = try? getMarkdownSummary(selectedModel: model, filePaths: files) else {
             return
         }
 
-        guard let templateFile = templateFile else {
-            print("Error: Could not find template.html5 file")
-            return
-        }
-
-        let htmlData = try? run(
-            "pandoc -f markdown --mathjax -t html --css " + cssFile + " --template " + templateFile,
-            input: markdown.data(using: .utf8)
-        )
-
-        let html = String(decoding: htmlData ?? Data(), as: UTF8.self)
-        webView.loadHTMLString(html, baseURL: nil)
+        markdownContent = markdown
+        let scroll = makeMarkdownScrollView(markdown: markdown)
+        applyAppearance(darkModeEnabled, to: scroll)
+        windowRef?.contentView = scroll
     }
 }
 
-// Class to handle close action for button
 class CloseHandler: NSObject {
     @objc static func closeWindowAction() {
-        windowRef?.close()
-        exit(0)
+        NSApp.terminate(nil)
     }
 }
 
-// Class to handle dark mode toggle
 class DarkModeHandler: NSObject {
     @objc static func toggleDarkMode() {
         darkModeEnabled.toggle()
-        print("Dark mode enabled:", darkModeEnabled)
-        updateModeButton()
-        
-        // Inject JavaScript to update the body class
-        let script = """
-        function setDarkMode(enabled) {
-            if (enabled) {
-                document.body.classList.add('dark-mode');
-                document.body.classList.remove('light-mode');
-            } else {
-                document.body.classList.add('light-mode');
-                document.body.classList.remove('dark-mode');
-            }
-        }
-        setDarkMode(\(darkModeEnabled));
-        """
-        
-        webViewRef?.evaluateJavaScript(script) { result, error in
-            if let error = error {
-                print("Error executing dark mode script: \(error)")
-            }
-        }
-    }
-    
-    static func updateModeButton() {
+        applyAppearance(darkModeEnabled, to: windowRef!.contentView!)
         modeButton.title = darkModeEnabled ? "Dark Mode" : "Light Mode"
     }
 }
 
-class WebViewDelegate: NSObject, WKNavigationDelegate {
-    var onLoad: (() -> Void)?
-    
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        print("WebView finished loading successfully")
-    }
-    
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        print("WebView failed to load: \(error)")
-        let alert = NSAlert()
-        alert.messageText = "Failed to load content"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .critical
-        alert.runModal()
-    }
-    
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        print("WebView failed provisional navigation: \(error)")
-    }
-}
+// MARK: - LLM Call
 
 func run(_ cmd: String, input: Data? = nil) throws -> Data {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/bin/bash")
-
     task.arguments = ["-c", cmd]
-    
+
     let stdin = Pipe()
     let stdout = Pipe()
-    let stderr = Pipe()
-
     task.standardInput = stdin
     task.standardOutput = stdout
-    task.standardError = stderr
 
     try task.run()
 
@@ -232,345 +137,106 @@ func run(_ cmd: String, input: Data? = nil) throws -> Data {
     stdin.fileHandleForWriting.closeFile()
 
     task.waitUntilExit()
-
-    let err = stderr.fileHandleForReading.readDataToEndOfFile()
-    if !err.isEmpty {
-        let msg = String(decoding: err, as: UTF8.self)
-        print("Command error:", msg)
-    }
-
     return stdout.fileHandleForReading.readDataToEndOfFile()
 }
 
-guard CommandLine.arguments.count >= 3 else {
-    print("Error: Insufficient arguments. Usage: LLMSummarizeDisplay <model> <file1> [file2] ...")
-    exit(1)
-}
-
-print("Starting LLMSummarize with arguments: \(CommandLine.arguments[1]) \(CommandLine.arguments[2])")
-
 func getMarkdownSummary(selectedModel: String, filePaths: [String]) throws -> String {
-    let fileURLs = filePaths.map { URL(fileURLWithPath: $0) }
-    print("Using pre-selected model: \(selectedModel)")
-    print("Processing \(fileURLs.count) files: \(filePaths.joined(separator: ", "))")
+    let urls = filePaths.map(URL.init(fileURLWithPath:))
+    originalFileURLs = urls
 
-    var combinedText = ""
-    var fileContents: [(url: URL, content: String)] = []
-    for fileURL in fileURLs {
-        do {
-            let content = try String(contentsOf: fileURL, encoding: .utf8)
-            fileContents.append((url: fileURL, content: content))
-            if fileURLs.count > 1 {
-                combinedText += "\n\n--- File: \(fileURL.lastPathComponent) ---\n\n"
-            }
-            combinedText += content
-        } catch {
-            print("Error reading file \(fileURL.path): \(error)")
-            throw error
+    var combined = ""
+    for url in urls {
+        let content = try String(contentsOf: url)
+        if urls.count > 1 {
+            combined += "\n\n--- File: \(url.lastPathComponent) ---\n\n"
         }
+        combined += content
     }
-
-    print("Combined file content length: \(combinedText.count) characters")
-
-    print("Selected model: \(selectedModel)")
 
     let payload: [String: Any] = [
         "model": selectedModel,
         "messages": [[
             "role": "user",
-            "content": "Summarize \(fileURLs.count == 1 ? "this file" : "these \(fileURLs.count) files") concisely in Markdown:\n\n\(combinedText)",
-        ]],
+            "content": "Summarize in Markdown:\n\n\(combined)"
+        ]]
     ]
 
-    let payloadData = try JSONSerialization.data(withJSONObject: payload)
+    let data = try JSONSerialization.data(withJSONObject: payload)
 
-    print("Sending request to local API...")
-
-    let responseData = try run("""
+    let response = try run("""
     curl -s http://localhost:11434/v1/chat/completions \
       -H 'Content-Type: application/json' \
       -d @-
-    """, input: payloadData)
+    """, input: data)
 
-    print("Received response, length: \(responseData.count) bytes")
+    let json = try JSONSerialization.jsonObject(with: response) as? [String: Any]
+    let markdown = ((json?["choices"] as? [[String: Any]])?.first?["message"] as? [String: Any])?["content"] as? String
 
-    let jsonAny = try JSONSerialization.jsonObject(with: responseData)
-    guard
-        let json = jsonAny as? [String: Any],
-        let choices = json["choices"] as? [[String: Any]],
-        let first = choices.first,
-        let message = first["message"] as? [String: Any],
-        let markdown = message["content"] as? String
-    else {
-        let errorMsg = "Unexpected API response:\n\(String(decoding: responseData, as: UTF8.self))"
-        print(errorMsg)
-        exit(1)
-    }
-    return markdown
+    return markdown ?? ""
 }
 
-let selectedModel = CommandLine.arguments[1]
-let filePaths = Array(CommandLine.arguments.dropFirst(2))
-let fileURLs = filePaths.map { URL(fileURLWithPath: $0) }
-print("Using pre-selected model: \(selectedModel)")
-print("Processing \(fileURLs.count) files: \(filePaths.joined(separator: ", "))")
+// MARK: - App Setup
 
-let markdown = try getMarkdownSummary(selectedModel: selectedModel, filePaths: filePaths)
-
-print("Got markdown content, length: \(markdown.count) characters")
-
-let cssFile = getStylesFilePath()
-let templateFile = getTemplateFilePath()
-        
-guard let cssFile = cssFile else {
-    print("Error: Could not find styles.css file")
-    exit(1)
-}
-guard let templateFile = templateFile else {
-    print("Error: Could not find template.html5 file")
+guard CommandLine.arguments.count >= 3 else {
+    print("Usage: LLMSummarizeDisplay <model> <file...>")
     exit(1)
 }
 
-let htmlData = try? run(
-    "pandoc -f markdown --mathjax -t html --css " + cssFile + " --template " + templateFile,
-    input: markdown.data(using: .utf8)
-)
+let model = CommandLine.arguments[1]
+let files = Array(CommandLine.arguments.dropFirst(2))
+markdownContent = try getMarkdownSummary(selectedModel: model, filePaths: files)
 
-let html = String(decoding: htmlData ?? Data(), as: UTF8.self)
-print("Generated HTML, length: \(html.count) characters")
-
-// Store values for save functionality
-originalFileURLs = fileURLs
-markdownContent = markdown
-
-print("Setting up NSApplication...")
-
-// Create the app with proper activation
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 
-// Create menu bar with File menu
-let mainMenu = NSMenu()
-let fileMenuItem = NSMenuItem()
-fileMenuItem.title = "File"
-let fileMenu = NSMenu(title: "File")
-let saveMenuItem = NSMenuItem(
-    title: "Save as Markdown...",
-    action: #selector(SaveHandler.saveMarkdownAction),
-    keyEquivalent: "s"
-)
-// Set targets with version check
-#if compiler(>=5.7)
-if #available(macOS 11.0, *) {
-    saveMenuItem.target = SaveHandler.self
-} else {
-    // For older macOS versions, don't set target or handle differently
-}
-#else
-saveMenuItem.target = SaveHandler.self
-#endif
-let copyMenuItem = NSMenuItem(
-    title: "Copy",
-    action: #selector(CopyHandler.copyAction),
-    keyEquivalent: "c"
-)
-let retryMenuItem = NSMenuItem(
-    title: "Retry",
-    action: #selector(RetryHandler.retryAction),
-    keyEquivalent: "r"
-)
-retryMenuItem.target = RetryHandler.self
-copyMenuItem.target = CopyHandler.self
-saveMenuItem.target = SaveHandler.self
-fileMenu.addItem(saveMenuItem)
-fileMenu.addItem(copyMenuItem)
-fileMenu.addItem(retryMenuItem)
-fileMenuItem.submenu = fileMenu
-mainMenu.addItem(fileMenuItem)
-app.mainMenu = mainMenu
-
-// Set targets for other menu items with version check
-#if compiler(>=5.7)
-if #available(macOS 11.0, *) {
-    retryMenuItem.target = RetryHandler.self
-    copyMenuItem.target = CopyHandler.self
-    saveMenuItem.target = SaveHandler.self
-} else {
-    // For older macOS versions, don't set targets
-}
-#else
-retryMenuItem.target = RetryHandler.self
-copyMenuItem.target = CopyHandler.self
-saveMenuItem.target = SaveHandler.self
-#endif
-
-// Configure web view preferences with dark mode support
-let config = WKWebViewConfiguration()
-config.preferences.setValue(true, forKey: "developerExtrasEnabled")
-
-// Add custom CSS and JavaScript for theme switching
-let userContentController = WKUserContentController()
-
-// JavaScript to handle dark mode toggle
-let darkModeScript = """
-function setDarkMode(enabled) {
-    if (enabled) {
-        document.body.classList.add('dark-mode');
-        document.body.classList.remove('light-mode');
-    } else {
-        document.body.classList.add('light-mode');
-        document.body.classList.remove('dark-mode');
-    }
-}
-
-// Set initial mode
-// already in the template.html5 file
-"""
-
-userContentController.addUserScript(WKUserScript(source: darkModeScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
-config.userContentController = userContentController
-
 let window = NSWindow(
-    contentRect: NSRect(x: 0, y: 0, width: 1200, height: 900),
-    styleMask: [.titled, .closable, .resizable, .miniaturizable],
+    contentRect: NSRect(x: 0, y: 0, width: 1100, height: 850),
+    styleMask: [.titled, .closable, .resizable],
     backing: .buffered,
     defer: false
 )
 
-window.title = "LLMSummarize (\(fileURLs.count == 1 ? "1 file" : "\(fileURLs.count) files"))"
-
-let webViewDelegate = WebViewDelegate()
-let webView = WKWebView(frame: window.contentView!.bounds, configuration: config)
-webView.autoresizingMask = [.width, .height]
-webView.navigationDelegate = webViewDelegate
-
-window.contentView?.addSubview(webView)
-
-// Store window reference for save dialog
+window.title = "LLMSummarize"
 windowRef = window
 
-// Create a global variable to hold the webView for theme updates
-var webViewRef: WKWebView?
+let rootView = NSView()
+rootView.translatesAutoresizingMaskIntoConstraints = false
+window.contentView = rootView
 
-// Add save button to top-right corner
-// Note: macOS coordinates have y=0 at bottom, so we position near the top
-let contentBounds = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 1200, height: 900)
-let buttonWidth: CGFloat = 150
-let buttonHeight: CGFloat = 28
-let buttonMargin: CGFloat = 8
+let scrollView = makeMarkdownScrollView(markdown: markdownContent)
+scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-// Add mode toggle button
-let modeButton = NSButton(frame: NSRect(
-    x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - buttonHeight - buttonMargin,
-    width: 100,
-    height: 28
-))
-modeButton.title = "Light Mode"
-modeButton.bezelStyle = .rounded
-modeButton.autoresizingMask = [.minXMargin, .maxYMargin]
-modeButton.target = DarkModeHandler.self
-modeButton.action = #selector(DarkModeHandler.toggleDarkMode)
-window.contentView?.addSubview(modeButton)
+let buttonStack = NSStackView()
+buttonStack.orientation = .horizontal
+buttonStack.spacing = 10
+buttonStack.translatesAutoresizingMaskIntoConstraints = false
 
-// Add save button to top-right corner
-let saveButton = NSButton(frame: NSRect(
-    x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - 2*buttonHeight - 2*buttonMargin,
-    width: buttonWidth,
-    height: buttonHeight
-))
-saveButton.title = "Save as Markdown"
-saveButton.bezelStyle = .rounded
-saveButton.autoresizingMask = [.minXMargin, .maxYMargin]
-saveButton.target = SaveHandler.self
-saveButton.action = #selector(SaveHandler.saveMarkdownAction)
-window.contentView?.addSubview(saveButton)
+let saveButton = NSButton(title: "Save Markdown", target: SaveHandler.self, action: #selector(SaveHandler.saveMarkdownAction))
+let copyButton = NSButton(title: "Copy", target: CopyHandler.self, action: #selector(CopyHandler.copyAction))
+let retryButton = NSButton(title: "Retry", target: RetryHandler.self, action: #selector(RetryHandler.retryAction))
+modeButton = NSButton(title: "Light Mode", target: DarkModeHandler.self, action: #selector(DarkModeHandler.toggleDarkMode))
+let closeButton = NSButton(title: "Close", target: CloseHandler.self, action: #selector(CloseHandler.closeWindowAction))
 
-// Add version check for button targets as well
-#if compiler(>=5.7)
-if #available(macOS 11.0, *) {
-    saveButton.target = SaveHandler.self
-    copyButton.target = CopyHandler.self
-    retryButton.target = RetryHandler.self
-} else {
-    // For older macOS versions, don't set targets or handle differently
-}
-#else
-saveButton.target = SaveHandler.self
-copyButton.target = CopyHandler.self
-retryButton.target = RetryHandler.self
-#endif
-
-// Add copy button to top-right corner
-let copyButton = NSButton(frame: NSRect(
-    x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - 3*buttonHeight - 3*buttonMargin,
-    width: buttonWidth,
-    height: buttonHeight
-))
-copyButton.title = "Copy Markdown"
-copyButton.bezelStyle = .rounded
-copyButton.autoresizingMask = [.minXMargin, .maxYMargin]
-copyButton.target = CopyHandler.self
-copyButton.action = #selector(CopyHandler.copyAction)
-window.contentView?.addSubview(copyButton)
-
-// Add retry button to top-right corner
-let retryButton = NSButton(frame: NSRect(
-    x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - 4*buttonHeight - 4*buttonMargin,
-    width: buttonWidth,
-    height: buttonHeight
-))
-retryButton.title = "Retry"
-retryButton.bezelStyle = .rounded
-retryButton.autoresizingMask = [.minXMargin, .maxYMargin]
-retryButton.target = RetryHandler.self
-retryButton.action = #selector(RetryHandler.retryAction)
-window.contentView?.addSubview(retryButton)
-
-// Add close button to top-left corner
-let closeButton = NSButton(frame: NSRect(
-    x: buttonMargin,
-    y: contentBounds.height - buttonHeight - buttonMargin,
-    width: buttonWidth,
-    height: buttonHeight
-))
-closeButton.title = "Close"
-closeButton.bezelStyle = .rounded
-closeButton.autoresizingMask = [.maxXMargin, .maxYMargin]
-closeButton.target = CloseHandler.self
-closeButton.action = #selector(CloseHandler.closeWindowAction)
-window.contentView?.addSubview(closeButton)
-
-// Store webView reference for theme updates
-webViewRef = webView
-
-// Set initial body class for dark mode
-let initialScript = """
-document.body.classList.add('\(darkModeEnabled ? "dark-mode" : "light-mode")');
-"""
-webView.evaluateJavaScript(initialScript) { result, error in
-    if let error = error {
-        print("Error setting initial body class: \(error)")
-    }
+[saveButton, copyButton, retryButton, modeButton, closeButton].forEach {
+    buttonStack.addArrangedSubview($0)
 }
 
-// Make sure webView is accessible to RetryHandler
-webView.loadHTMLString(html, baseURL: nil)
+rootView.addSubview(scrollView)
+rootView.addSubview(buttonStack)
+
+NSLayoutConstraint.activate([
+    // Buttons at top
+    buttonStack.topAnchor.constraint(equalTo: rootView.topAnchor, constant: 12),
+    buttonStack.leadingAnchor.constraint(equalTo: rootView.leadingAnchor, constant: 12),
+
+    // Scroll view below buttons
+    scrollView.topAnchor.constraint(equalTo: buttonStack.bottomAnchor, constant: 12),
+    scrollView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+    scrollView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+    scrollView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+])
 
 window.center()
 window.makeKeyAndOrderFront(nil)
-
-// Show window before loading content
-window.orderFrontRegardless()
-
-print("Loading HTML content...")
-webView.loadHTMLString(html, baseURL: nil)
-
-print("Activating app...")
 app.activate(ignoringOtherApps: true)
-
-print("Running app...")
 app.run()

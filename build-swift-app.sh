@@ -11,7 +11,7 @@ xcrun swiftc \
     -o LLMSummarizeDisplay \
     -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk \
     -target x86_64-apple-macos10.15 \
-    LLMSummarizeDisplay/main.swift \
+    Sources/main.swift \
     -framework Cocoa \
     -framework WebKit \
     -framework UniformTypeIdentifiers

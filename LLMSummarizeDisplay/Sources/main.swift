@@ -17,6 +17,31 @@ if ProcessInfo.processInfo.environment["TERM"] == nil {
     setenv("CG_SESSION_EVENT_ID", "1", 1)
 }
 
+
+func getStylesFilePath() -> String? {
+    // This is the correct way to get resource from bundle
+    if let url = Bundle.main.url(forResource: "styles", withExtension: "css") {
+        print("Found styles.css at: \(url.path)")
+        return url.path
+    } else {
+        print("styles.css not found in bundle (attempting fallback)")
+        // Try to find it in the Styles directory as a fallback
+        if let url = Bundle.main.url(forResource: "Styles/styles", withExtension: "css") {
+            print("Found styles.css at fallback path: \(url.path)")
+            return url.path
+        }
+        // Try alternative resource names that might work
+        print("Trying alternative resource names...")
+        if let url = Bundle.main.url(forResource: "styles", withExtension: "css", subdirectory: "Styles") {
+            print("Found styles.css at subdirectory path: \(url.path)")
+            return url.path
+        }
+        print("styles.css NOT FOUND in bundle")
+        return nil
+    }
+}
+
+
 // Class to handle save action for menu and button
 class SaveHandler: NSObject {
     @objc static func saveMarkdownAction() {
@@ -24,9 +49,7 @@ class SaveHandler: NSObject {
         
         let savePanel = NSSavePanel()
         savePanel.title = "Save Summary as Markdown"
-        if let mdType = UTType(filenameExtension: "md") {
-            savePanel.allowedContentTypes = [mdType]
-        }
+        // For older macOS versions, use a simple approach without UTType
         savePanel.canCreateDirectories = true
         
         // Set default location to original file's folder and default filename
@@ -76,11 +99,37 @@ class RetryHandler: NSObject {
             print("Error getting markdown summary")
             return
         }
-        markdownContent = markdown
-        let htmlData = try? run(
-            "pandoc -f markdown -t html --standalone",
-            input: markdown.data(using: .utf8)
-        )
+        
+        let cssFile = getStylesFilePath()
+        
+        guard let cssFile = cssFile else {
+            print("Error: Could not find styles.css file")
+            return
+        }
+
+let cssFile = getStylesFilePath()
+        
+guard let cssFile = cssFile else {
+    print("Error: Could not find styles.css file")
+    exit(1)
+}
+
+markdownContent = markdown
+let cssFile = getStylesFilePath()
+        
+guard let cssFile = cssFile else {
+    print("Error: Could not find styles.css file")
+    return
+}
+
+let htmlData = try? run(
+    "pandoc -f markdown -t html --standalone --css=" + cssFile,
+    input: markdown.data(using: .utf8)
+)
+    } catch {
+        print("Failed to read CSS file for retry: \(error)")
+    }
+}
         guard let htmlData = htmlData else {
             print("Error running pandoc")
             return
@@ -102,27 +151,32 @@ class CloseHandler: NSObject {
 class DarkModeHandler: NSObject {
     @objc static func toggleDarkMode() {
         darkModeEnabled.toggle()
-        // Refresh the web content with appropriate theme
-        updateWebViewTheme()
-    }
-    
-    static func updateWebViewTheme() {
-        guard let webView = webView else { return }
+        print("Dark mode enabled:", darkModeEnabled)
+        updateModeButton()
         
-        let themeScript = """
-        (function() {
-            const body = document.body;
-            if (\(darkModeEnabled ? "true" : "false")) {
-                body.classList.add('dark-mode');
-                body.classList.remove('light-mode');
+        // Inject JavaScript to update the body class
+        let script = """
+        function setDarkMode(enabled) {
+            if (enabled) {
+                document.body.classList.add('dark-mode');
+                document.body.classList.remove('light-mode');
             } else {
-                body.classList.add('light-mode');
-                body.classList.remove('dark-mode');
+                document.body.classList.add('light-mode');
+                document.body.classList.remove('dark-mode');
             }
-        })();
+        }
+        setDarkMode(\(darkModeEnabled));
         """
         
-        webView.evaluateJavaScript(themeScript, completionHandler: nil)
+        webViewRef?.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("Error executing dark mode script: \(error)")
+            }
+        }
+    }
+    
+    static func updateModeButton() {
+        modeButton.title = darkModeEnabled ? "Dark Mode" : "Light Mode"
     }
 }
 
@@ -131,9 +185,6 @@ class WebViewDelegate: NSObject, WKNavigationDelegate {
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         print("WebView finished loading successfully")
-        // Apply theme after content loads
-        DarkModeHandler.updateWebViewTheme()
-        onLoad?()
     }
     
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -153,8 +204,9 @@ class WebViewDelegate: NSObject, WKNavigationDelegate {
 func run(_ cmd: String, input: Data? = nil) throws -> Data {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/bin/bash")
-    task.arguments = ["-c", cmd]
 
+    task.arguments = ["-c", cmd]
+    
     let stdin = Pipe()
     let stdout = Pipe()
     let stderr = Pipe()
@@ -258,10 +310,50 @@ let markdown = try getMarkdownSummary(selectedModel: selectedModel, filePaths: f
 
 print("Got markdown content, length: \(markdown.count) characters")
 
-let htmlData = try run(
-    "pandoc -f markdown -t html --standalone",
+let cssFile = getStylesFilePath()
+        
+guard let cssFile = cssFile else {
+    print("Error: Could not find styles.css file")
+    exit(1)
+}
+
+// Generate HTML without external CSS first
+var htmlData = try? run(
+    "pandoc -f markdown -t html --standalone --css=" + cssFile,
     input: markdown.data(using: .utf8)
 )
+
+// If we have a CSS file, embed it in the HTML
+if let cssPath = getStylesFilePath() {
+    do {
+        let cssContent = try String(contentsOfFile: cssPath)
+        if var htmlString = String(data: htmlData ?? Data(), encoding: .utf8) {
+            // Insert CSS into the <head> section of the HTML
+            let cssStyle = "<style>\n\(cssContent)\n</style>"
+            htmlString = htmlString.replacingOccurrences(of: "</head>", with: "\(cssStyle)</head>")
+            
+            // Add body class for initial mode - make sure we're not duplicating
+            if !htmlString.contains("class=\"") {
+                // Check if there's a <body> tag, otherwise add it to the html tag
+                if htmlString.contains("<body") {
+                    htmlString = htmlString.replacingOccurrences(of: "<body", with: "<body class=\"\(darkModeEnabled ? "dark-mode" : "light-mode")\">")
+                } else {
+                    // No body tag - likely a standalone HTML without body, add it to the html tag
+                    htmlString = htmlString.replacingOccurrences(of: "<html", with: "<html class=\"\(darkModeEnabled ? "dark-mode" : "light-mode")\">")
+                }
+            }
+            
+            htmlData = htmlString.data(using: .utf8)
+        }
+    } catch {
+        print("Failed to read CSS file: \(error)")
+    }
+}
+
+guard let htmlData = htmlData else {
+    print("Error running pandoc or no output data")
+    exit(1) // Terminate the program
+}
 
 let html = String(decoding: htmlData, as: UTF8.self)
 print("Generated HTML, length: \(html.count) characters")
@@ -286,6 +378,16 @@ let saveMenuItem = NSMenuItem(
     action: #selector(SaveHandler.saveMarkdownAction),
     keyEquivalent: "s"
 )
+// Set targets with version check
+#if compiler(>=5.7)
+if #available(macOS 11.0, *) {
+    saveMenuItem.target = SaveHandler.self
+} else {
+    // For older macOS versions, don't set target or handle differently
+}
+#else
+saveMenuItem.target = SaveHandler.self
+#endif
 let copyMenuItem = NSMenuItem(
     title: "Copy",
     action: #selector(CopyHandler.copyAction),
@@ -306,103 +408,45 @@ fileMenuItem.submenu = fileMenu
 mainMenu.addItem(fileMenuItem)
 app.mainMenu = mainMenu
 
+// Set targets for other menu items with version check
+#if compiler(>=5.7)
+if #available(macOS 11.0, *) {
+    retryMenuItem.target = RetryHandler.self
+    copyMenuItem.target = CopyHandler.self
+    saveMenuItem.target = SaveHandler.self
+} else {
+    // For older macOS versions, don't set targets
+}
+#else
+retryMenuItem.target = RetryHandler.self
+copyMenuItem.target = CopyHandler.self
+saveMenuItem.target = SaveHandler.self
+#endif
+
 // Configure web view preferences with dark mode support
 let config = WKWebViewConfiguration()
 config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
 // Add custom CSS and JavaScript for theme switching
 let userContentController = WKUserContentController()
-let themeCSS = """
-<style>
-    body.light-mode {
-        background-color: #ffffff;
-        color: #000000;
-    }
-    
-    body.dark-mode {
-        background-color: #1e1e1e;
-        color: #ffffff;
-    }
-    
-    /* Header styling */
-    body.dark-mode h1, 
-    body.dark-mode h2, 
-    body.dark-mode h3, 
-    body.dark-mode h4, 
-    body.dark-mode h5, 
-    body.dark-mode h6 {
-        color: #ffffff;
-    }
-    
-    /* Blockquote styling */
-    body.dark-mode blockquote {
-        border-left-color: #888888;
-        background-color: rgba(128, 128, 128, 0.1);
-    }
-    
-    /* Code and pre styling */
-    body.dark-mode code,
-    body.dark-mode pre {
-        background-color: #333333;
-        color: #ffffff;
-    }
-    
-    /* Table styling */
-    body.dark-mode table {
-        border-collapse: collapse;
-        width: 100%;
-    }
-    
-    body.dark-mode th, 
-    body.dark-mode td {
-        border: 1px solid #555555;
-        padding: 8px;
-    }
-    
-    body.dark-mode th {
-        background-color: #333333;
-        color: #ffffff;
-    }
-    
-    /* Link styling */
-    body.dark-mode a {
-        color: #4da6ff;
-    }
-    
-    /* List styling */
-    body.dark-mode ul, 
-    body.dark-mode ol {
-        padding-left: 20px;
-    }
-    
-    /* Image styling */
-    body.dark-mode img {
-        filter: brightness(0.9);
-    }
-</style>
-"""
-userContentController.addUserScript(WKUserScript(source: """
-(function() {
-    // Function to set dark mode
-    window.setDarkMode = function(enabled) {
-        const body = document.body;
-        if (enabled) {
-            body.classList.add('dark-mode');
-            body.classList.remove('light-mode');
-        } else {
-            body.classList.add('light-mode');
-            body.classList.remove('dark-mode');
-        }
-    };
-    
-    // Function to toggle dark mode
-    window.toggleDarkMode = function() {
-        const currentMode = document.body.classList.contains('dark-mode');
-        window.setDarkMode(!currentMode);
-    };
-})();
-""", injectionTime: .atDocumentStart, forMainFrameOnly: true))
 
+// JavaScript to handle dark mode toggle
+let darkModeScript = """
+function setDarkMode(enabled) {
+    if (enabled) {
+        document.body.classList.add('dark-mode');
+        document.body.classList.remove('light-mode');
+    } else {
+        document.body.classList.add('light-mode');
+        document.body.classList.remove('dark-mode');
+    }
+}
+
+// Set initial mode
+setDarkMode(\(darkModeEnabled));
+"""
+
+userContentController.addUserScript(WKUserScript(source: darkModeScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
 config.userContentController = userContentController
 
 let window = NSWindow(
@@ -425,7 +469,7 @@ window.contentView?.addSubview(webView)
 windowRef = window
 
 // Create a global variable to hold the webView for theme updates
-var webView: WKWebView?
+var webViewRef: WKWebView?
 
 // Add save button to top-right corner
 // Note: macOS coordinates have y=0 at bottom, so we position near the top
@@ -434,41 +478,24 @@ let buttonWidth: CGFloat = 150
 let buttonHeight: CGFloat = 28
 let buttonMargin: CGFloat = 8
 
-// Add dark mode toggle buttons below retry button
-let toggleButtonWidth: CGFloat = 100
-let toggleButtonHeight: CGFloat = 28
-let toggleButtonMargin: CGFloat = 8
-
-let lightModeButton = NSButton(frame: NSRect(
+// Add mode toggle button
+let modeButton = NSButton(frame: NSRect(
     x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - 4*buttonHeight - 4*buttonMargin,
-    width: toggleButtonWidth,
-    height: toggleButtonHeight
+    y: contentBounds.height - buttonHeight - buttonMargin,
+    width: 100,
+    height: 28
 ))
-lightModeButton.title = "Light Mode"
-lightModeButton.bezelStyle = .rounded
-lightModeButton.autoresizingMask = [.minXMargin, .maxYMargin]
-lightModeButton.target = DarkModeHandler.self
-lightModeButton.action = #selector(DarkModeHandler.toggleDarkMode)
-window.contentView?.addSubview(lightModeButton)
-
-let darkModeButton = NSButton(frame: NSRect(
-    x: contentBounds.width - buttonWidth - buttonMargin - toggleButtonWidth - toggleButtonMargin,
-    y: contentBounds.height - 4*buttonHeight - 4*buttonMargin,
-    width: toggleButtonWidth,
-    height: toggleButtonHeight
-))
-darkModeButton.title = "Dark Mode"
-darkModeButton.bezelStyle = .rounded
-darkModeButton.autoresizingMask = [.minXMargin, .maxYMargin]
-darkModeButton.target = DarkModeHandler.self
-darkModeButton.action = #selector(DarkModeHandler.toggleDarkMode)
-window.contentView?.addSubview(darkModeButton)
+modeButton.title = "Light Mode"
+modeButton.bezelStyle = .rounded
+modeButton.autoresizingMask = [.minXMargin, .maxYMargin]
+modeButton.target = DarkModeHandler.self
+modeButton.action = #selector(DarkModeHandler.toggleDarkMode)
+window.contentView?.addSubview(modeButton)
 
 // Add save button to top-right corner
 let saveButton = NSButton(frame: NSRect(
     x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - 5*buttonHeight - 5*buttonMargin,
+    y: contentBounds.height - 2*buttonHeight - 2*buttonMargin,
     width: buttonWidth,
     height: buttonHeight
 ))
@@ -479,10 +506,25 @@ saveButton.target = SaveHandler.self
 saveButton.action = #selector(SaveHandler.saveMarkdownAction)
 window.contentView?.addSubview(saveButton)
 
+// Add version check for button targets as well
+#if compiler(>=5.7)
+if #available(macOS 11.0, *) {
+    saveButton.target = SaveHandler.self
+    copyButton.target = CopyHandler.self
+    retryButton.target = RetryHandler.self
+} else {
+    // For older macOS versions, don't set targets or handle differently
+}
+#else
+saveButton.target = SaveHandler.self
+copyButton.target = CopyHandler.self
+retryButton.target = RetryHandler.self
+#endif
+
 // Add copy button to top-right corner
 let copyButton = NSButton(frame: NSRect(
     x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - 6*buttonHeight - 6*buttonMargin,
+    y: contentBounds.height - 3*buttonHeight - 3*buttonMargin,
     width: buttonWidth,
     height: buttonHeight
 ))
@@ -496,7 +538,7 @@ window.contentView?.addSubview(copyButton)
 // Add retry button to top-right corner
 let retryButton = NSButton(frame: NSRect(
     x: contentBounds.width - buttonWidth - buttonMargin,
-    y: contentBounds.height - 7*buttonHeight - 7*buttonMargin,
+    y: contentBounds.height - 4*buttonHeight - 4*buttonMargin,
     width: buttonWidth,
     height: buttonHeight
 ))
@@ -522,7 +564,17 @@ closeButton.action = #selector(CloseHandler.closeWindowAction)
 window.contentView?.addSubview(closeButton)
 
 // Store webView reference for theme updates
-webView = webView
+webViewRef = webView
+
+// Set initial body class for dark mode
+let initialScript = """
+document.body.classList.add('\(darkModeEnabled ? "dark-mode" : "light-mode")');
+"""
+webView.evaluateJavaScript(initialScript) { result, error in
+    if let error = error {
+        print("Error setting initial body class: \(error)")
+    }
+}
 
 // Make sure webView is accessible to RetryHandler
 webView.loadHTMLString(html, baseURL: nil)

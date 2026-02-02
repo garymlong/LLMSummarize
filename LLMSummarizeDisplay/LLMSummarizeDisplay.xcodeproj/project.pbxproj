@@ -6,26 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXCopyFilesBuildPhase section */
-		916463372F2E8DB900DBA92B /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-/* End PBXCopyFilesBuildPhase section */
+/* Begin PBXBuildFile section */
+		9164635E2F303C7300DBA92B /* styles.css in Resources */ = {isa = PBXBuildFile; fileRef = 9164635D2F303C7300DBA92B /* styles.css */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		916463392F2E8DB900DBA92B /* LLMSummarizeDisplay */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = LLMSummarizeDisplay; sourceTree = BUILT_PRODUCTS_DIR; };
+		9164635D2F303C7300DBA92B /* styles.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = styles.css; path = Styles/styles.css; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		9164633B2F2E8DB900DBA92B /* LLMSummarizeDisplay */ = {
+		9164633B2F2E8DB900DBA92B /* Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = LLMSummarizeDisplay;
+			path = Sources;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -44,7 +37,8 @@
 		916463302F2E8DB900DBA92B = {
 			isa = PBXGroup;
 			children = (
-				9164633B2F2E8DB900DBA92B /* LLMSummarizeDisplay */,
+				9164635D2F303C7300DBA92B /* styles.css */,
+				9164633B2F2E8DB900DBA92B /* Sources */,
 				9164633A2F2E8DB900DBA92B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,14 +60,14 @@
 			buildPhases = (
 				916463352F2E8DB900DBA92B /* Sources */,
 				916463362F2E8DB900DBA92B /* Frameworks */,
-				916463372F2E8DB900DBA92B /* CopyFiles */,
+				916463592F30374700DBA92B /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				9164633B2F2E8DB900DBA92B /* LLMSummarizeDisplay */,
+				9164633B2F2E8DB900DBA92B /* Sources */,
 			);
 			name = LLMSummarizeDisplay;
 			packageProductDependencies = (
@@ -115,6 +109,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		916463592F30374700DBA92B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9164635E2F303C7300DBA92B /* styles.css in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		916463352F2E8DB900DBA92B /* Sources */ = {
@@ -248,7 +253,8 @@
 		916463412F2E8DB900DBA92B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = LLMSummarizeDisplay/LLMSummarizeDisplay.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Sources/LLMSummarizeDisplay.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 62P3RW8S6N;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -260,7 +266,8 @@
 		916463422F2E8DB900DBA92B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = LLMSummarizeDisplay/LLMSummarizeDisplay.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Sources/LLMSummarizeDisplay.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 62P3RW8S6N;
 				ENABLE_HARDENED_RUNTIME = YES;

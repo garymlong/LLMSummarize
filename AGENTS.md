@@ -58,9 +58,23 @@ except requests.exceptions.RequestException as e:
 ```
 
 ## Critical Rules
-1. **No secrets in code** (use environment variables)
-2. **All new features require tests**
-3. **PRs must pass CI checks** (lint, test, type check)
-4. **Commit messages**: `feat: add X`, `fix: Y`, max 50 chars
-5. **Plans**: Store all project plans in `plans/` as markdown files (e.g., `plans/multi_file_support_plan_v0.md`).
-
+- **No secrets in code** (use environment variables)
+- **All new features require tests**
+- **PRs must pass CI checks** (lint, test, type check)
+- **Plans**: Store all project plans in `plans/` as markdown files (e.g., `plans/multi_file_support_plan_v0.md`), use task lists (- [ ] / — [x]), todo tracking, and cross-link related docs.
+- Always think step-by-step before writing any code or making suggestions.
+- Explain your reasoning in detail before proposing changes or code.
+- Never output code without a clear, preceding explanation and plan.
+- Prioritize clean, readable, maintainable code over clever shortcuts.
+- Follow existing project style, conventions, and patterns exactly.
+- If anything is ambiguous, ask for clarification instead of assuming.
+- Output complete code blocks – no placeholders, ellipses, or "rest unchanged".
+- Be concise but thorough – no unnecessary verbosity unless asked.
+- Self-documenting code‒expressive identifiers, minimal explanatory comments.
+- Explicit error handling‒no uncaught exceptions.
+- No dummy data‒remove placeholders; tests use real fixtures, not mocks.
+- Docstrings on every public symbol.
+- Rule upkeep‒if ./cursor/rules is missing or stale, propose updates; flag any legacy .cursorrules file at once.
+- Dev-friendly scripts‒shell scripts must print clear, colourised output.
+- Python env‒ensure a local venv; create it if absent.
+- When showing the summary of changes, always provide a markdown compatible block of text that the user can copy in addition to showing the summary of changes

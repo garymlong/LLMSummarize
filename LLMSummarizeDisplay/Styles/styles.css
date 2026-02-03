@@ -1,0 +1,56 @@
+/* styles.css */
+body.light-mode {
+    background-color: #ffffff;
+    color: #000000;
+}
+body.dark-mode {
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+/* Header styling */
+body.dark-mode h1, 
+body.dark-mode h2, 
+body.dark-mode h3, 
+body.dark-mode h4, 
+body.dark-mode h5, 
+body.dark-mode h6 {
+    color: #ffffff;
+}
+/* Blockquote styling */
+body.dark-mode blockquote {
+    border-left-color: #888888;
+    background-color: rgba(128, 128, 128, 0.1);
+}
+/* Code and pre styling */
+body.dark-mode code,
+body.dark-mode pre {
+    background-color: #333333;
+    color: #ffffff;
+}
+/* Table styling */
+body.dark-mode table {
+    border-collapse: collapse;
+    width: 100%;
+}
+body.dark-mode th, 
+body.dark-mode td {
+    border: 1px solid #555555;
+    padding: 8px;
+}
+body.dark-mode th {
+    background-color: #333333;
+    color: #ffffff;
+}
+/* Link styling */
+body.dark-mode a {
+    color: #4da6ff;
+}
+/* List styling */
+body.dark-mode ul, 
+body.dark-mode ol {
+    padding-left: 20px;
+}
+/* Image styling */
+body.dark-mode img {
+    filter: brightness(0.9);
+}

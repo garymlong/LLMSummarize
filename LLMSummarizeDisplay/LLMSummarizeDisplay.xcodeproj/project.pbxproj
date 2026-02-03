@@ -6,26 +6,21 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXCopyFilesBuildPhase section */
-		916463372F2E8DB900DBA92B /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-/* End PBXCopyFilesBuildPhase section */
+/* Begin PBXBuildFile section */
+		916418AD2F309908006E1359 /* styles.css in Resources */ = {isa = PBXBuildFile; fileRef = 9164635D2F303C7300DBA92B /* styles.css */; };
+		916418B02F318F5B006E1359 /* MarkdownKit in Frameworks */ = {isa = PBXBuildFile; productRef = 916418AF2F318F5B006E1359 /* MarkdownKit */; };
+		916418B22F318F5B006E1359 /* MarkdownKit-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 916418B12F318F5B006E1359 /* MarkdownKit-Dynamic */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		916463392F2E8DB900DBA92B /* LLMSummarizeDisplay */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = LLMSummarizeDisplay; sourceTree = BUILT_PRODUCTS_DIR; };
+		9164635D2F303C7300DBA92B /* styles.css */ = {isa = PBXFileReference; explicitFileType = text.css; name = styles.css; path = Styles/styles.css; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		9164633B2F2E8DB900DBA92B /* LLMSummarizeDisplay */ = {
+		9164633B2F2E8DB900DBA92B /* Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = LLMSummarizeDisplay;
+			path = Sources;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -35,6 +30,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				916418B22F318F5B006E1359 /* MarkdownKit-Dynamic in Frameworks */,
+				916418B02F318F5B006E1359 /* MarkdownKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -44,7 +41,8 @@
 		916463302F2E8DB900DBA92B = {
 			isa = PBXGroup;
 			children = (
-				9164633B2F2E8DB900DBA92B /* LLMSummarizeDisplay */,
+				9164635D2F303C7300DBA92B /* styles.css */,
+				9164633B2F2E8DB900DBA92B /* Sources */,
 				9164633A2F2E8DB900DBA92B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,17 +64,19 @@
 			buildPhases = (
 				916463352F2E8DB900DBA92B /* Sources */,
 				916463362F2E8DB900DBA92B /* Frameworks */,
-				916463372F2E8DB900DBA92B /* CopyFiles */,
+				916463592F30374700DBA92B /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				9164633B2F2E8DB900DBA92B /* LLMSummarizeDisplay */,
+				9164633B2F2E8DB900DBA92B /* Sources */,
 			);
 			name = LLMSummarizeDisplay;
 			packageProductDependencies = (
+				916418AF2F318F5B006E1359 /* MarkdownKit */,
+				916418B12F318F5B006E1359 /* MarkdownKit-Dynamic */,
 			);
 			productName = LLMSummarizeDisplay;
 			productReference = 916463392F2E8DB900DBA92B /* LLMSummarizeDisplay */;
@@ -106,6 +106,9 @@
 			);
 			mainGroup = 916463302F2E8DB900DBA92B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				916418AE2F318F5B006E1359 /* XCRemoteSwiftPackageReference "MarkdownKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9164633A2F2E8DB900DBA92B /* Products */;
 			projectDirPath = "";
@@ -115,6 +118,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		916463592F30374700DBA92B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				916418AD2F309908006E1359 /* styles.css in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		916463352F2E8DB900DBA92B /* Sources */ = {
@@ -248,7 +262,8 @@
 		916463412F2E8DB900DBA92B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = LLMSummarizeDisplay/LLMSummarizeDisplay.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Sources/LLMSummarizeDisplay.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 62P3RW8S6N;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -260,7 +275,8 @@
 		916463422F2E8DB900DBA92B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = LLMSummarizeDisplay/LLMSummarizeDisplay.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Sources/LLMSummarizeDisplay.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 62P3RW8S6N;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -291,6 +307,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		916418AE2F318F5B006E1359 /* XCRemoteSwiftPackageReference "MarkdownKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/bmoliveira/MarkdownKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		916418AF2F318F5B006E1359 /* MarkdownKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 916418AE2F318F5B006E1359 /* XCRemoteSwiftPackageReference "MarkdownKit" */;
+			productName = MarkdownKit;
+		};
+		916418B12F318F5B006E1359 /* MarkdownKit-Dynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 916418AE2F318F5B006E1359 /* XCRemoteSwiftPackageReference "MarkdownKit" */;
+			productName = "MarkdownKit-Dynamic";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 916463312F2E8DB900DBA92B /* Project object */;
 }

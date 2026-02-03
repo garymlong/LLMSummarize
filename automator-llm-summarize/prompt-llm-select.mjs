@@ -7,16 +7,19 @@ import * as fs from "node:fs";
 import { intro, select, outro, cancel, isCancel } from "@clack/prompts";
 
 const LLAMA_SERVER_PORT = 11434;
+/** Use 127.0.0.1 so Node targets IPv4; localhost can resolve to ::1 and llama-server may listen only on IPv4. */
+const LLAMA_SERVER_HOST = "127.0.0.1";
 
 async function getModels() {
-  // curl http://localhost:${LLAMA_SERVER_PORT}/v1/models to get the list of models
+  // curl http://127.0.0.1:${LLAMA_SERVER_PORT}/v1/models to get the list of models
   const model = { id: "", description: "" };
+  const url = `http://${LLAMA_SERVER_HOST}:${LLAMA_SERVER_PORT}/v1/models`;
   try {
-    const response = await fetch(`http://localhost:${LLAMA_SERVER_PORT}/v1/models`, 
-                                  { method: "GET", 
-                                    headers: { "Content-Type": "application/json" } 
+    const response = await fetch(url,
+                                  { method: "GET",
+                                    headers: { "Content-Type": "application/json" }
                                   });
-    
+
     if (!response.ok) {
       console.error("Error getting models:", response.statusText);
       return [];
@@ -26,7 +29,7 @@ async function getModels() {
     const models = [];
     console.log("Available models:");
     data.data.forEach(model => {
-      console.log(model.id);
+      //console.log(model.id);
       models.push({ id: model.id, 
                     description: model.status.value === "loaded" ?
                     "Loaded" : "Not loaded" });
@@ -41,14 +44,14 @@ async function getModels() {
 async function main() {
   const models = await getModels();
 
-  console.log(models);
+  //console.log(models);
 
   intro(
     "\x1b[1m\x1b[36m LLAMA-SERVER models \x1b[0m\n\x1b[2mChoose a model to use for summarization.\x1b[0m"
   );
 
   const defaultModelIndex = models.findIndex(model => model.description === "Loaded");
-  console.log("Found default model index:", defaultModelIndex);
+  //console.log("Found default model index:", defaultModelIndex);
   if (defaultModelIndex >= 0) {
     models.unshift({ id: models[defaultModelIndex].id, description: "Pre-Loaded" });
   }
@@ -61,7 +64,7 @@ async function main() {
       hint: model.description 
     })),
     maxItems: 20, //max number of models to show
-    initialValue: defaultModelIndex >= 0 ? defaultModelIndex : undefined,
+    //initialValue: defaultModelIndex >= 0 ? defaultModelIndex : 0,
   });
 
   if (isCancel(selectedModelName)) {
